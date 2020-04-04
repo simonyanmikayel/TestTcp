@@ -34,6 +34,7 @@ public:
   void HideConnection(CSocket *pSocket);
   CString GetSendText();
   ClntSockArray* GetSelectedSockets();
+  void RestoreWindPos(WINDOWPLACEMENT& wpl);
 
 // Dialog Data
 	//{{AFX_DATA(CServerDlg)

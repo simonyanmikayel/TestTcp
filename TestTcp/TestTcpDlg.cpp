@@ -505,7 +505,7 @@ char lpDefaultHeadr[] = "HTTP/1.0 200 OK\r\n"\
 void CServerDlg::GetSetProfile(BOOL bSave)
 {
   CWinApp* pApp = AfxGetApp();
-  CString strSection = "ServerSettings";
+  CString strSection = "TestTcpSettings";
   if (bSave)
   {
     UpdateData();
@@ -516,6 +516,13 @@ void CServerDlg::GetSetProfile(BOOL bSave)
     pApp->WriteProfileInt(strSection, "AddHeadr", m_bAddHeadr);
     pApp->WriteProfileInt(strSection, "AddLength", m_bAddLength );
     pApp->WriteProfileInt(strSection, "LocalPort", m_LocalPort);
+	//SaveWindPos
+	{
+		WINDOWPLACEMENT wpl = { sizeof(WINDOWPLACEMENT) };
+		if (::GetWindowPlacement(m_hWnd, &wpl))
+			pApp->WriteProfileBinary(strSection, "WindowPos", (LPBYTE)&wpl, sizeof(wpl));
+
+	}
     try
     {
       int i = m_ResponceHeadr.GetLength();
@@ -538,7 +545,16 @@ void CServerDlg::GetSetProfile(BOOL bSave)
     m_bAddHeadr   = pApp->GetProfileInt(strSection, "AddHeadr", 1);
     m_bAddLength  = pApp->GetProfileInt(strSection, "AddLength", 1);
     m_LocalPort   = pApp->GetProfileInt(strSection, "LocalPort", 0);
-    try
+	//RestoreWindPos
+	{
+		BYTE* pData; UINT Bytes;
+		if (pApp->GetProfileBinary(strSection, "WindowPos", &pData, &Bytes) && Bytes == sizeof(WINDOWPLACEMENT))
+		{
+			RestoreWindPos(*((WINDOWPLACEMENT*)pData));
+			delete[] pData;
+		}
+	}
+	try
     {
       m_ResponceHeadr = "";
       CFile cFile("Responce_Headr.txt", CFile::modeRead);
@@ -554,6 +570,52 @@ void CServerDlg::GetSetProfile(BOOL bSave)
     if (m_ResponceHeadr.GetLength() == 0)
       m_ResponceHeadr = lpDefaultHeadr;
   }
+}
+
+void CServerDlg::RestoreWindPos(WINDOWPLACEMENT& wpl)
+{
+
+	RECT rcWnd = wpl.rcNormalPosition;
+	int cx, cy, x, y;
+	cx = rcWnd.right - rcWnd.left;
+	cy = rcWnd.bottom - rcWnd.top;
+	x = rcWnd.left;
+	y = rcWnd.top;
+
+	// Get the monitor info
+	MONITORINFO monInfo;
+	HMONITOR hMonitor = ::MonitorFromPoint(CPoint(x, y), MONITOR_DEFAULTTONEAREST);
+	monInfo.cbSize = sizeof(MONITORINFO);
+	if (::GetMonitorInfo(hMonitor, &monInfo))
+	{
+		// Adjust for work area
+		x += monInfo.rcWork.left - monInfo.rcMonitor.left;
+		y += monInfo.rcWork.top - monInfo.rcMonitor.top;
+		// Ensure top left point is on screen
+		if (CRect(monInfo.rcWork).PtInRect(CPoint(x, y)) == FALSE)
+		{
+			x = monInfo.rcWork.left;
+			y = monInfo.rcWork.top;
+		}
+	}
+	else
+	{
+		RECT rcScreen;
+		SystemParametersInfo(SPI_GETWORKAREA, 0, &rcScreen, 0);
+
+		cx = min(rcScreen.right, (LONG)cx);
+		cy = min(rcScreen.bottom, (LONG)cy);
+		x = max(0L, min((LONG)x, rcScreen.right - cx));
+		y = max(0L, min((LONG)y, rcScreen.bottom - cy));
+	}
+
+	::SetWindowPos(m_hWnd, 0, x, y, cx, cy, SWP_NOZORDER);
+
+	if (wpl.flags & WPF_RESTORETOMAXIMIZED)
+	{
+		//::ShowWindow(hWnd, SW_SHOWMAXIMIZED);
+		::PostMessage(m_hWnd, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+	}
 }
 
 void CServerDlg::ShowConnection(CClntSock *pSocket)
